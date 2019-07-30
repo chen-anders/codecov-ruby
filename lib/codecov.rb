@@ -259,6 +259,7 @@ class SimpleCov::Formatter::Codecov
     https.use_ssl = url.match(/^https/) != nil
 
     uri.query = URI.encode_www_form(params)
+    retries = 0
     begin
       req = Net::HTTP::Post.new(uri.path + "?" + uri.query,
         {
@@ -278,6 +279,8 @@ class SimpleCov::Formatter::Codecov
         upload_url: upload_url
       }
     rescue StandardError => err
+      retries += 1
+      retry if retries < 3
       puts 'Unable to initialize uploads to CodeCov'
       puts err
     end
