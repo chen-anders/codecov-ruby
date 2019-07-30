@@ -1,6 +1,7 @@
 require 'uri'
 require 'json'
 require 'net/http'
+require 'securerandom'
 
 class SimpleCov::Formatter::Codecov
   VERSION = "0.1.14"
@@ -243,26 +244,63 @@ class SimpleCov::Formatter::Codecov
       params[:pr] = params[:pr].sub('#', '')
     end
 
-    # =================
-    # Build URL Request
-    # =================
-    url = ENV['CODECOV_URL'] || "https://codecov.io"
-    uri = URI.parse(url.chomp('/') + "/upload/v1")
+    upload_params = initialize_upload(params)
+    make_request(upload_params, json)
+  end
 
-    uri.query = URI.encode_www_form(params)
+  private
+
+  def initialize_upload(params)
+    params[:uuid] = SecureRandom.uuid
+    url = ENV['CODECOV_URL'] || "https://codecov.io"
+    uri = URI.parse(url.chomp('/') + "/upload/v4")
+    https = Net::HTTP.new(uri.host, uri.port)
+    https.use_ssl = url.match(/^https/) != nil
+
+    begin
+      req = Net::HTTP::Post.new(uri.path + "?" + uri.query,
+        {
+          'Content-Type' => 'application/json',
+          'Accept' => 'application/json'
+        })
+
+      # make resquest
+      response = https.request(req)
+      body = response.body
+
+      parsed_body = body.split("\n")
+      report_url = parsed_body.first
+      upload_url = parsed_body.last
+
+      {
+        report_url: report_url,
+        upload_url: upload_url
+
+      }
+    rescue StandardError => err
+      puts 'Error uploading coverage reports to Codecov. Sorry'
+      puts err
+    end
+  end
+
+  def make_request(params, report_json)
+
+    url = params[:upload_url]
+    uri = URI.parse(url)
 
     # get https
     https = Net::HTTP.new(uri.host, uri.port)
     https.use_ssl = url.match(/^https/) != nil
 
     begin
-      req = Net::HTTP::Post.new(uri.path + "?" + uri.query,
+      req = Net::HTTP::Put.new(uri.path + "?" + uri.query,
                                 {
-                                  'Content-Type' => 'application/json',
-                                  'Accept' => 'application/json'
+                                  'Content-Type' => 'text/plain',
+                                  'x-amz-acl' => 'public-read',
+                                  'x-amz-storage-class' => 'REDUCED_REDUNDANCY'
                                 })
 
-      req.body = json
+      req.body = report_json
 
       # make resquest
       response = https.request(req)
@@ -271,23 +309,14 @@ class SimpleCov::Formatter::Codecov
       puts response.body
 
       # join the response to report
-      report['result'] = JSON.parse(response.body)
-      report['params'] = params
-      report['query'] = uri.query
+      puts "View reports at #{params[:report_url]}"
 
       net_blockers(:on)
-
-      # return json data
-      report
-
     rescue StandardError => err
       puts 'Error uploading coverage reports to Codecov. Sorry'
       puts err
     end
-
   end
-
-  private
 
   # Format SimpleCov coverage data for the Codecov.io API.
   #
