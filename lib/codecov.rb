@@ -257,6 +257,7 @@ class SimpleCov::Formatter::Codecov
     https = Net::HTTP.new(uri.host, uri.port)
     https.use_ssl = url.match(/^https/) != nil
 
+    uri.query = URI.encode_www_form(params)
     begin
       req = Net::HTTP::Post.new(uri.path + "?" + uri.query,
         {
@@ -271,14 +272,12 @@ class SimpleCov::Formatter::Codecov
       parsed_body = body.split("\n")
       report_url = parsed_body.first
       upload_url = parsed_body.last
-
       {
         report_url: report_url,
         upload_url: upload_url
-
       }
     rescue StandardError => err
-      puts 'Error uploading coverage reports to Codecov. Sorry'
+      puts 'Unable to initialize uploads to CodeCov'
       puts err
     end
   end
