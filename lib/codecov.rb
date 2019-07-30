@@ -246,6 +246,7 @@ class SimpleCov::Formatter::Codecov
 
     upload_params = initialize_upload(params)
     make_request(upload_params, json)
+    net_blockers(:on)
   end
 
   private
@@ -283,7 +284,7 @@ class SimpleCov::Formatter::Codecov
   end
 
   def make_request(params, report_json)
-
+    retries = 0
     url = params[:upload_url]
     uri = URI.parse(url)
 
@@ -310,8 +311,11 @@ class SimpleCov::Formatter::Codecov
       # join the response to report
       puts "View reports at #{params[:report_url]}"
 
-      net_blockers(:on)
+
     rescue StandardError => err
+      retries += 1
+      retry if retries < 3
+
       puts 'Error uploading coverage reports to Codecov. Sorry'
       puts err
     end
