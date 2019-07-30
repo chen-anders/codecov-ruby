@@ -244,8 +244,12 @@ class SimpleCov::Formatter::Codecov
       params[:pr] = params[:pr].sub('#', '')
     end
 
-    upload_params = initialize_upload(params)
-    make_request(upload_params, json)
+    # upload_params = initialize_upload(params)
+    # make_request(upload_params, json)
+    test_id = ENV.fetch('DUB_TEST_ID', SecureRandom.hex(6))
+    if Dir.exists?('/mnt/artifacts')
+      File.write("/mnt/artifacts/coverage.#{test_id}.json", json)
+    end
     net_blockers(:on)
   end
 
